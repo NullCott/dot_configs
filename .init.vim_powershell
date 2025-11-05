@@ -1,0 +1,71 @@
+" ==============================
+" Configuración general de Vim
+" ==============================
+set nocompatible
+set tabstop=4
+set shiftwidth=4
+set expandtab
+
+colorscheme industry
+
+" Números de línea y regla
+set number
+set ruler
+
+" Resaltar coincidencias y búsqueda incremental
+set showmatch
+set ignorecase
+set incsearch
+
+" Habilitar sintaxis y colores
+syntax on
+set termguicolors
+hi Normal ctermbg=NONE guibg=NONE " Mantener fondo del terminal
+
+" ==============================
+" Función para pegar imagen desde portapapeles (Windows + PowerShell)
+" ==============================
+function! PasteImageFromClipboard()
+    " Carpeta destino relativa al archivo actual
+    let l:dir = expand('%:p:h') . '/img'
+    if !isdirectory(l:dir)
+        call mkdir(l:dir, 'p')
+    endif
+
+    " Nombre de imagen
+    let l:fname = 'img_' . strftime("%Y%m%d_%H%M%S") . '.png'
+    let l:full_win = l:dir . '/' . l:fname
+
+    " Archivo temporal de PowerShell
+    let l:tmpfile = tempname() . '.ps1'
+
+    " Escribir script de PowerShell en el archivo temporal
+    call writefile([
+                \ '$img = Get-Clipboard -Format Image',
+                \ 'if ($img -ne $null) {',
+                \ '    $img.Save("' . l:full_win . '")',
+                \ '    Write-Output "SAVED"',
+                \ '} else {',
+                \ '    Write-Output "NO_IMAGE"',
+                \ '}'
+                \ ], l:tmpfile)
+
+    " Ejecutar el script de PowerShell
+    let l:out = system('powershell.exe -NoProfile -ExecutionPolicy Bypass -File ' . shellescape(l:tmpfile))
+
+    " Eliminar archivo temporal
+    call delete(l:tmpfile)
+
+    " Procesar salida
+    if l:out =~? 'SAVED'
+        call append(line('.'), '![](img/' . l:fname . ')')
+        normal! j0
+        echom 'Imagen guardada y Markdown insertado: ' . l:fname
+    elseif l:out =~? 'NO_IMAGE'
+        echom 'No se detectó imagen en el portapapeles.'
+    else
+        echom 'Error al ejecutar PowerShell: ' . l:out
+    endif
+endfunction
+
+nnoremap <F9> :call PasteImageFromClipboard()<CR>
